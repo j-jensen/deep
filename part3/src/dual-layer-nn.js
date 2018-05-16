@@ -33,7 +33,7 @@ function DualLayerNetwork(noInput, noHidden, noOutput, learningRate) {
             .multiply(-1 * learning_rate);
 
         // Hidden layer
-        var dH_dHnet = prediction.H.resize([-1, 0]).map(function (h) { return h * (1 - h); }); // Bias do not change, so it doesent count
+        var dH_dHnet = prediction.H.resize([-1, 0]).map(function (h) { return h * (1 - h); }); // Bias do not change, so it doesn't count
         // Backprobagation
         var gradients_HI = weights_oh.resize([0, -1]).transpose() // We don't need column with bias weights
             .multiply(gradients_OH) // Sumarize all node gardients, witch directly recieves input from hidden layer
