@@ -47,17 +47,6 @@ Matrix.prototype = {
         return new Matrix(values, this[SHAPE]);
     },
 
-    subtract: function (m) {
-        if (!this.isSameShape(m)) {
-            throw new Error('add only accepts argument of same shape Matrix');
-        }
-        var values = this[VALUES].map(function (value, i) {
-            return value - m[VALUES][i];
-        });
-
-        return new Matrix(values, this[SHAPE]);
-    },
-
     get columns() {
         Object.defineProperty(this, 'columns', {
             value: mapColumns(this[VALUES], this[SHAPE][0], this[SHAPE][1]),
@@ -69,52 +58,14 @@ Matrix.prototype = {
         return this.columns;
     },
 
-    get rows() {
-        Object.defineProperty(this, 'rows', {
-            value: mapRows(this[VALUES], this[SHAPE][0], this[SHAPE][1]),
-            writable: false,
-            configurable: false,
-            enumerable: true
-
-        });
-        return this.rows;
-    },
-
-    isSameShape: function (m) {
-        return m[SHAPE][0] == this[SHAPE][0] && m[SHAPE][1] == this[SHAPE][1];
-    },
-
     equals: function (m) {
         return this.isSameShape(m) && this[VALUES].every(function (value, i) {
             return m[VALUES][i] === value;
         });
     },
 
-    resize: function (shape, defaultValue) {
-        var rows = this.rows, delta;
-        defaultValue = defaultValue || 0;
-        if (shape[0] < 1 || shape[1] < 1) { // Shape argument is deltas
-            if (this[SHAPE][0] + shape[0] < 1 || this[SHAPE][1] + shape[1] < 1) {
-                throw new Error('Relative resizing must result in shape minimum [1,1]');
-            }
-            shape = [this[SHAPE][0] + shape[0], this[SHAPE][1] + shape[1]];
-        }
-
-        if (shape[1] < this[SHAPE][1]) {
-            rows = rows.map(function (row) { return row.slice(0, shape[1]); });
-        }
-        else if (shape[1] > this[SHAPE][1]) {
-            delta = shape[1] - this[SHAPE][1];
-            rows = rows.map(function (row) { return row.concat(array(delta, defaultValue)) });
-        }
-        if (shape[0] < this[SHAPE][0]) {
-            rows = rows.slice(0, shape[0]);
-        }
-        else if (shape[0] > this[SHAPE][0]) {
-            rows = rows.concat(array(shape[0] - this[SHAPE][0], array(shape[1], defaultValue)));
-        }
-
-        return new Matrix([].concat.apply([], rows), shape);
+    isSameShape: function (m) {
+        return m[SHAPE][0] == this[SHAPE][0] && m[SHAPE][1] == this[SHAPE][1];
     },
 
     map: function (fn) {
@@ -145,28 +96,12 @@ Matrix.prototype = {
             });
         }
         else {
-            throw new Error('map only accepts arguments of type mapping-function.');
+            throw new Error('map only accepts arguments of type mapping-function, or ma same-size matrix and a mapping-function.');
         }
         return new Matrix(values, this[SHAPE]);
     },
 
-    reduce: function (fn, agg) {
-        var i;
-        if (typeof fn == 'function') {
-            for (var r = 0; r < this[SHAPE][0]; r++) {
-                for (var c = 0; c < this[SHAPE][1]; c++) {
-                    i = (r * c) + c;
-                    agg = fn(agg, this[VALUES][i], i, r, c);
-                }
-            }
-            return agg;
-        }
-        else {
-            throw new Error('reduce only accepts arguments of type mapping-function.');
-        }
-    },
-
-    multiply: function (m, dbg) {
+    multiply: function (m) {
         var self = this,
             values,
             rows,
@@ -180,13 +115,10 @@ Matrix.prototype = {
                 var iterations = this[SHAPE][1],
                     cr = 0,
                     cc = 0;
-                var strings = dbg && [];
                 values = Array.from({ length: rows * columns }, function (_, i) {
                     var sum = 0;
-                    var sumStr = '';
                     for (var j = 0; j < iterations; j++) {
                         sum += self[VALUES][cr * iterations + j] * m[VALUES][j * columns + cc];
-                        dbg && (sumStr += (sumStr ? ' + ' : '') + 'a' + (cr + 1) + (j + 1) + '*b' + (j + 1) + (cc + 1));
                     }
                     if (cc == (columns - 1)) {
                         cc = 0;
@@ -195,16 +127,8 @@ Matrix.prototype = {
                     else {
                         cc++;
                     }
-                    dbg && strings.push(sumStr);
                     return sum;
                 });
-                if (dbg) {
-                    console.log(this[SHAPE], '*', m[SHAPE]);
-                    for (var i = 0; i < rows; i++) {
-                        console.log('| ' + strings.slice(i * columns, i * columns + columns).join(' | ') + ' |');
-                    }
-                    console.log('-----------------------------------')
-                }
                 return new Matrix(values, [rows, columns]);
             }
             // Entrywise product (Hadamard)
@@ -228,10 +152,56 @@ Matrix.prototype = {
     },
 
     print: function () {
-        console.log(this[SHAPE][0] + '-by-' + this[SHAPE][1]);
-        mapRows(this[VALUES], this[SHAPE][0], this[SHAPE][1]).map(function (row, i) {
-            console.log('| ' + row.map(x => x.toString().padStart(5)).join(',') + ' |');
+        console.table(this.rows);
+    },
+
+    resize: function (shape, defaultValue) {
+        var rows = this.rows, delta;
+        defaultValue = defaultValue || 0;
+        if (shape[0] < 1 || shape[1] < 1) { // Shape argument is deltas
+            if (this[SHAPE][0] + shape[0] < 1 || this[SHAPE][1] + shape[1] < 1) {
+                throw new Error('Relative resizing must result in shape minimum [1,1]');
+            }
+            shape = [this[SHAPE][0] + shape[0], this[SHAPE][1] + shape[1]];
+        }
+
+        if (shape[1] < this[SHAPE][1]) {
+            rows = rows.map(function (row) { return row.slice(0, shape[1]); });
+        }
+        else if (shape[1] > this[SHAPE][1]) {
+            delta = shape[1] - this[SHAPE][1];
+            rows = rows.map(function (row) { return row.concat(array(delta, defaultValue)) });
+        }
+        if (shape[0] < this[SHAPE][0]) {
+            rows = rows.slice(0, shape[0]);
+        }
+        else if (shape[0] > this[SHAPE][0]) {
+            rows = rows.concat(array(shape[0] - this[SHAPE][0], array(shape[1], defaultValue)));
+        }
+
+        return new Matrix([].concat.apply([], rows), shape);
+    },
+
+    get rows() {
+        Object.defineProperty(this, 'rows', {
+            value: mapRows(this[VALUES], this[SHAPE][0], this[SHAPE][1]),
+            writable: false,
+            configurable: false,
+            enumerable: true
+
         });
+        return this.rows;
+    },
+
+    subtract: function (m) {
+        if (!this.isSameShape(m)) {
+            throw new Error('add only accepts argument of same shape Matrix');
+        }
+        var values = this[VALUES].map(function (value, i) {
+            return value - m[VALUES][i];
+        });
+
+        return new Matrix(values, this[SHAPE]);
     },
 
     transpose: function () {

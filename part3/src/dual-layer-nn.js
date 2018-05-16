@@ -8,7 +8,7 @@ function DualLayerNetwork(noInput, noHidden, noOutput, learningRate) {
             throw new Error('feedforward argument should match constructed number of inputs.');
         }
         var I = new Matrix(inputs_arr.concat(1), [inputs_arr.length + 1, 1]), // Adding bias to inputs
-            H = weights_hi.multiply(I).map(sigmoid).resize([1, 0], 1), // Adding bias to hidden layer
+            H = weights_hi.multiply(I).map(sigmoid).resize([1, 0], 1), // Adding bias to hidden layer output
             O = weights_oh.multiply(H).map(sigmoid);
 
         return !returnIntermediates
@@ -24,28 +24,28 @@ function DualLayerNetwork(noInput, noHidden, noOutput, learningRate) {
         var targets = new Matrix(targets_array, [noOutput, 1]),
             prediction = this.predict(inputs_array, true);
 
-        // Output layer
+        // ** Output layer **
         var dE_dO = prediction.O.subtract(targets);
-        var dO_dOnet = prediction.O.map(function (o) { return o * (1 - o); });
+        var dO_dOnet = prediction.O.map(derivativeOfOutputWRTInput);
         var gradients_OH = dE_dO.multiply(dO_dOnet);
 
         var delta_weights_oh = gradients_OH.multiply(prediction.H.transpose())
             .multiply(-1 * learning_rate);
 
-        // Hidden layer
-        var dH_dHnet = prediction.H.resize([-1, 0]).map(function (h) { return h * (1 - h); }); // Bias do not change, so it doesn't count
+        // ** Hidden layer **
+        var dH_dHnet = prediction.H.resize([-1, 0]).map(derivativeOfOutputWRTInput); // Bias do not change, so it doesn't count
         // Backprobagation
-        var gradients_HI = weights_oh.resize([0, -1]).transpose() // We don't need column with bias weights
-            .multiply(gradients_OH) // Sumarize all node gardients, witch directly recieves input from hidden layer
+        var gradients_HI = weights_oh.resize([0, -1])// We don't need column with bias weights
+            .transpose() // Weights pointing to H(i) is in column i of weights_oh
+            .multiply(gradients_OH) // Sumarize all node gradients, witch directly recieves input from hidden layer (Calculate derivative of E for hidden neurons)
             .multiply(dH_dHnet);
 
         var delta_weights_hi = gradients_HI.multiply(prediction.I.transpose())
             .multiply(-1 * learning_rate);
 
-        // Update weights
+        // ** Update weights **
         weights_oh = weights_oh.add(delta_weights_oh);
         weights_hi = weights_hi.add(delta_weights_hi);
-
     };
 
     this.toJS = function () {
@@ -74,4 +74,8 @@ function sigmoid(x) {
 
 function dSigmoid(y) {
     return sigmoid(y) * (1 - sigmoid(y));
+}
+
+function derivativeOfOutputWRTInput(output) {
+    return output * (1 - output);
 }
