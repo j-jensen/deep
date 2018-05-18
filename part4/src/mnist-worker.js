@@ -2,7 +2,7 @@ importScripts("../../test-data/mnist/mnist.js");
 importScripts("../../libs/matrix.js");
 importScripts("../../part3/src/dual-layer-nn.js");
 
-var nn = new DualLayerNetwork(784, 512, 10, 0.01);
+var nn = new DualLayerNetwork(784, 64, 10, 0.01);
 
 self.addEventListener('message', function (e) {
     if (e.data == 'START') {
@@ -94,15 +94,16 @@ function getRandomSet(typedImages, typedLabels) {
     };
 }
 function classify(outputs) {
-    return outputs.reduce(function (guess, value, i) {
-        if (value >= 0.5) {
-            if (guess > -1) {
-                return -2;
+    var highest = outputs.reduce(function (guess, value, i) {
+        if (value >= guess.prop) {
+            return {
+                prob: value,
+                guess: i
             }
-            return i;
         }
         return guess;
-    }, -1);
+    }, {});
+    return highest.guess || -1;
 }
 
 function declasify(num) {
