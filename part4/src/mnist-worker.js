@@ -102,8 +102,8 @@ function classify(outputs) {
             }
         }
         return guess;
-    }, {});
-    return highest.guess || -1;
+    }, { guess: -1, prop: -1 });
+    return highest.guess;
 }
 
 function declasify(num) {
