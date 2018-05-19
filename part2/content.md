@@ -1,0 +1,3 @@
+# The XOR problem
+XOR is not a linear separable problem, so one neuron can not solve it.
+We make a network...
