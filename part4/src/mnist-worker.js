@@ -2,12 +2,12 @@ importScripts("../../test-data/mnist/mnist.js");
 importScripts("../../libs/matrix.js");
 importScripts("../../part3/src/dual-layer-nn.js");
 
-var nn = new DualLayerNetwork(784, 784, 10, 0.01);
+var nn = new DualLayerNetwork(784, 256, 10, 0.2);
 
 self.addEventListener('message', function (e) {
     if (e.data == 'START') {
         loadMNIST(function (data) {
-            startTraining(data.test_images, data.test_labels)
+            startTraining(data.train_images, data.train_labels)
                 .then(startTesting.bind(null, data.test_images, data.test_labels));
         });
     }
@@ -94,16 +94,15 @@ function getRandomSet(typedImages, typedLabels) {
     };
 }
 function classify(outputs) {
-    var highest = outputs.reduce(function (guess, value, i) {
-        if (value >= guess.prop) {
-            return {
-                prob: value,
-                guess: i
+    return outputs.reduce(function (guess, value, i) {
+        if (value >= 0.5) {
+            if (guess > -1) {
+                return -2;
             }
+            return i;
         }
         return guess;
-    }, { guess: -1, prop: -1 });
-    return highest.guess;
+    }, -1);
 }
 
 function declasify(num) {
