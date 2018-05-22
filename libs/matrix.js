@@ -96,12 +96,12 @@ Matrix.prototype = {
             });
         }
         else {
-            throw new Error('map only accepts arguments of type mapping-function, or ma same-size matrix and a mapping-function.');
+            throw new Error('map only accepts arguments of type mapping-function, or same-size matrix and a mapping-function.');
         }
         return new Matrix(values, this[SHAPE]);
     },
 
-    multiply: function (m) {
+    multiply: function (m, returnAsValues) {
         var self = this,
             values,
             rows,
@@ -120,32 +120,54 @@ Matrix.prototype = {
                     for (var j = 0; j < iterations; j++) {
                         sum += self[VALUES][cr * iterations + j] * m[VALUES][j * columns + cc];
                     }
-                    if (cc == (columns - 1)) {
+                    if (++cc >= columns) {
                         cc = 0;
                         cr++;
                     }
-                    else {
-                        cc++;
-                    }
                     return sum;
                 });
-                return new Matrix(values, [rows, columns]);
+                return returnAsValues ? values : new Matrix(values, [rows, columns]);
             }
             // Entrywise product (Hadamard)
             if (this.isSameShape(m)) {
                 var values = this[VALUES].map(function (value, i) {
                     return value * m[VALUES][i];
                 });
-                return new Matrix(values, [rows, columns]);
+                return returnAsValues ? values : new Matrix(values, [rows, columns]);
             }
             throw new Error('Multiplication of two matrices demands that either: A and B has same shape (Hadamard product), or A.columns equals B.rows.');
+        }
+        if (Array.isArray(m)) { // Handle array as a 'm.length by 1' matrix. Resulting in 'this[SHAPE][0] by 1' matrix
+            if (m.length == this[SHAPE][1]) {
+                rows = this[SHAPE][0];
+
+                var iterations = this[SHAPE][1],
+                    cr = 0;
+
+                values = Array.from({ length: rows }, function (_, i) {
+                    var sum = 0;
+                    for (var j = 0; j < iterations; j++) {
+                        sum += self[VALUES][cr * iterations + j] * m[j];
+                    }
+                    cr++;
+                    return sum;
+                });
+                return returnAsValues ? values : new Matrix(values, [rows, 1]);
+            }
+            else if (m.length == this[SHAPE][0] && this[SHAPE][1] == 1) {// Hadamar product
+                values = m.map(function (v, i) { return v * self[VALUES][i]; });
+                return returnAsValues ? values : new Matrix(values, this[SHAPE]);
+            }
+            else {
+                throw new Error('Argument array length should match, this.columns.length.');
+            }
         }
         if (typeof m == 'number') { // Scalar product
             values = this[VALUES].map(function (value, i) {
                 return value * m;
             });
 
-            return new Matrix(values, this[SHAPE]);
+            return returnAsValues ? values : new Matrix(values, this[SHAPE]);
         }
 
         throw new Error('Argument for multiply should be a number or a Matrix.');

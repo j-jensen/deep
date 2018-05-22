@@ -1,8 +1,8 @@
 importScripts("../../test-data/mnist/mnist.js");
 importScripts("../../libs/matrix.js");
-importScripts("../../part3/src/dual-layer-nn.js");
+importScripts("../../part5/src/multi-layer-nn.js");
 
-var nn = new DualLayerNetwork(784, 256, 10, 0.2);
+var nn = new MultiLayerNetwork(784, 64, 10, 0.2);
 
 self.addEventListener('message', function (e) {
     if (e.data == 'START') {
