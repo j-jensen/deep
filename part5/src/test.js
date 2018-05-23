@@ -1,4 +1,4 @@
-var nn = new MultiLayerNetwork(2, 2, 1, 0.1);
+var nn = new MultiLayerNetwork(2, 2, 1, 0.01);
 
 var w = 200, h = 200, res = 4;
 var out = document.getElementById('out');

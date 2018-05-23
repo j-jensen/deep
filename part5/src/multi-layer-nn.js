@@ -19,14 +19,26 @@ function Layer(inputs, outputs) {
 
         return weights.multiply(neuronsWBias, true).map(sigmoid);
     };
+    this.toString = function () {
+        return inputs + '-->' + outputs;
+    };
 }
 
-function MultiLayerNetwork(noInput, noHidden, noOutput, learningRate) {
-    var layers = [
-        new Layer(noInput, noHidden),
-        new Layer(noHidden, noHidden),
-        new Layer(noHidden, noOutput)
-    ];
+function MultiLayerNetwork(noInput, hidden, noOutput, learningRate) {
+    hidden = [].concat(hidden);
+    var layers = hidden.length ? hidden.reduce(function (acc, no, i) {
+        if (i == 0) {
+            acc.push(new Layer(noInput, no));
+        }
+
+        if (i == hidden.length - 1) {
+            acc.push(new Layer(no, noOutput));
+        }
+        else {
+            acc.push(new Layer(no, hidden[i + 1]));
+        }
+        return acc;
+    }, []) : [new Layer(noInput, noOutput)];
 
     var learning_rate = learningRate || .1;
 
@@ -49,32 +61,31 @@ function MultiLayerNetwork(noInput, noHidden, noOutput, learningRate) {
         var targets = targets_array,
             neurons = this.predict(inputs_array, true);
 
-        layers.reduceRight(function (mem, layer, i) {
+        layers.reduceRight(function (gradients, layer, i) {
             if (i == layers.length - 1) {
                 // ** Output layer **
                 var dE_dO = new Matrix(neurons[i + 1].map(function (output, i) { return output - targets[i]; }), [neurons[i + 1].length, 1]);
                 var dO_dOnet = neurons[i + 1].map(derivativeOfOutputWRTInput);
-                layer.gradients = dE_dO.multiply(dO_dOnet);
+                gradients[i] = dE_dO.multiply(dO_dOnet);
             }
             else {
                 // ** Internal layer **
                 var dH_dHnet = neurons[i + 1].map(derivativeOfOutputWRTInput);
 
                 // Backprobagation
-                var prevLayer = layers[i + 1];
-                layer.gradients = prevLayer.weights.resize([0, -1])// We don't need column with bias weights
+                gradients[i] = layers[i + 1].weights
+                    .resize([0, -1])// We don't need column with bias weights
                     .transpose() // Weights pointing to H(i) is in column i of weights_oh
-                    .multiply(prevLayer.gradients) // Sumarize all node gradients, witch directly recieves input from hidden layer (Calculate derivative of E for hidden neurons)
+                    .multiply(gradients[i + 1]) // Sumarize all node gradients, witch directly recieves input from hidden layer (Calculate derivative of E for hidden neurons)
                     .multiply(dH_dHnet);
 
             }
-            return mem;
-        }, []);
-
-        layers.forEach(function (layer, i) {
-            var delta_weights = layer.gradients.multiply(new Matrix(neurons[i].concat(1), [neurons[i].length + 1, 1]).transpose()).multiply(-1 * learning_rate);
-            layer.weights = layer.weights.add(delta_weights);
-        });
+            return gradients;
+        }, [])
+            .forEach(function (gradient, i) {
+                var delta_weights = gradient.multiply(new Matrix(neurons[i].concat(1), [neurons[i].length + 1, 1]).transpose()).multiply(-1 * learning_rate);
+                layers[i].weights = layers[i].weights.add(delta_weights);
+            });
     };
 }
 

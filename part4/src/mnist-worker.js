@@ -2,7 +2,7 @@ importScripts("../../test-data/mnist/mnist.js");
 importScripts("../../libs/matrix.js");
 importScripts("../../part5/src/multi-layer-nn.js");
 
-var nn = new MultiLayerNetwork(784, 64, 10, 0.2);
+var nn = new MultiLayerNetwork(784, [40], 10, 0.4);
 
 self.addEventListener('message', function (e) {
     if (e.data == 'START') {
@@ -23,7 +23,8 @@ function startTesting(images, labels, trainingTime) {
     for (var i = 0; i < total; i++) {
         var now = Date.now(),
             testData = getTestingData(),
-            guess = classify(nn.predict(testData.inputs.map(scale.bind(null, 255))));
+            prediction = nn.predict(testData.inputs.map(scale.bind(null, 255))),
+            guess = classify(prediction);
 
         if (testData.target != guess) {
             errors.push({
@@ -31,21 +32,17 @@ function startTesting(images, labels, trainingTime) {
                 target: testData.target,
                 inputs: testData.inputs,
             });
-            self.postMessage({
-                step: 'Testing',
-                bytes: testData.inputs,
-                time: Date.now() - now,
-                progress: (1 + i) * 100 / total,
-                result: 'Guess: ' + guess + ' Target: ' + testData.target
-            });
         }
-        else {
-            self.postMessage({
-                step: 'Testing',
-                time: Date.now() - now,
-                progress: (1 + i) * 100 / total,
-            });
-        }
+        self.postMessage({
+            step: 'Testing',
+            bytes: testData.inputs,
+            time: Date.now() - now,
+            progress: (1 + i) * 100 / total,
+            result: 'Guess: ' + guess + ' Target: ' + testData.target,
+            guess: guess,
+            target: testData.target,
+            prediction: prediction
+        });
     }
     self.postMessage({
         step: 'Done',
