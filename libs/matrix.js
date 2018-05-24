@@ -5,34 +5,40 @@ var VALUES = Symbol('Matrix values'),
     SHAPE = Symbol('Matrix shape');
 
 function Matrix(values, shape) {
-    /*if (!Array.isArray(values) || !Array.isArray(shape)) {
-        throw new Error('Arguments should be an array of values, and an array of shape.');
-    }*/
     if (shape[0] * shape[1] != values.length) {
         throw new Error('Shape and values do not match.');
     }
-    //Object.freeze(this[VALUES] = values.map(Object.freeze));
-    //Object.freeze(this[SHAPE] = shape.map(Object.freeze));
-    this[VALUES] = values;
+
+    this[VALUES] = Float64Array.from(values);
     this[SHAPE] = shape;
 }
 
-function mapColumns(values, rows, columns) {
-    return Array.from({ length: columns }, function (v, c) {
-        return Array.from({ length: rows }, function (v, r) {
-            return values[r * columns + c];
-        });
-    })
-}
+function matrixMap(values, shape, fn) {
+    if (typeof values == 'number') {
+        values = new Float64Array(values);
+    }
+    var r = 0, c = -1;
+    return values.map(function (value, i) {
+        if (++c >= shape[1]) {
+            c = 0, r++;
+        }
 
-function mapRows(arr, rows, columns) {
-    return Array.from({ length: rows }, function (v, i) {
-        return arr.slice(i * columns, i * columns + columns);
+        return fn(value, r, c, i);
     });
 }
 
-function array(length, defaultValue) {
-    return Array.from({ length: length }, function () { return defaultValue; });
+function matrixReduce(values, shape, fn, mem) {
+    if (typeof values == 'number') {
+        values = new Float64Array(values);
+    }
+    var r = 0, c = -1;
+    return values.reduce(function (m, value, i) {
+        if (++c >= shape[1]) {
+            c = 0, r++;
+        }
+
+        return fn(m, value, r, c, i);
+    }, mem);
 }
 
 Matrix.prototype = {
@@ -47,17 +53,6 @@ Matrix.prototype = {
         return new Matrix(values, this[SHAPE]);
     },
 
-    get columns() {
-        Object.defineProperty(this, 'columns', {
-            value: mapColumns(this[VALUES], this[SHAPE][0], this[SHAPE][1]),
-            writable: false,
-            configurable: false,
-            enumerable: true
-
-        });
-        return this.columns;
-    },
-
     equals: function (m) {
         return this.isSameShape(m) && this[VALUES].every(function (value, i) {
             return m[VALUES][i] === value;
@@ -68,35 +63,15 @@ Matrix.prototype = {
         return m[SHAPE][0] == this[SHAPE][0] && m[SHAPE][1] == this[SHAPE][1];
     },
 
-    map: function (fn) {
+    map: function (fn, context) {
         var self = this,
             m, values, r, c;
 
         if (typeof fn == 'function') {
-            r = 0, c = 0;
-            values = this[VALUES].map(function (value) {
-                var result = fn(value, r, c);
-                if (++c == self[SHAPE][1].length) {
-                    c = 0;
-                    r++;
-                }
-                return result;
-            });
-        }
-        else if (fn instanceof Matrix && typeof arguments[1] == 'function' && this.isSameShape(fn)) {
-            m = fn;
-            fn = arguments[1];
-            values = this[VALUES].map(function (value, i) {
-                var result = fn(value, m[VALUES][i], r, c);
-                if (++c == self[SHAPE][1].length) {
-                    c = 0;
-                    r++;
-                }
-                return result;
-            });
+            values = matrixMap(this[VALUES], self[SHAPE], fn);
         }
         else {
-            throw new Error('map only accepts arguments of type mapping-function, or same-size matrix and a mapping-function.');
+            throw new Error('map only accepts arguments of type mapping-function.');
         }
         return new Matrix(values, this[SHAPE]);
     },
@@ -104,55 +79,47 @@ Matrix.prototype = {
     multiply: function (m, returnAsValues) {
         var self = this,
             values,
-            rows,
-            columns;
+            cRows,
+            cColumns;
 
         if (m instanceof Matrix) {
-            rows = this[SHAPE][0];
-            columns = m[SHAPE][1];
+            cRows = this[SHAPE][0];
+            cColumns = m[SHAPE][1];
 
             if (m[SHAPE][0] == this[SHAPE][1]) {
-                var iterations = this[SHAPE][1],
-                    cr = 0,
-                    cc = 0;
-                values = Array.from({ length: rows * columns }, function (_, i) {
-                    var sum = 0;
-                    for (var j = 0; j < iterations; j++) {
-                        sum += self[VALUES][cr * iterations + j] * m[VALUES][j * columns + cc];
-                    }
-                    if (++cc >= columns) {
-                        cc = 0;
-                        cr++;
-                    }
-                    return sum;
-                });
-                return returnAsValues ? values : new Matrix(values, [rows, columns]);
+
+                values = matrixMap(cRows * cColumns, [cRows, cColumns], function (_, r, c) {
+                    var aCols = self[SHAPE][1];
+
+                    return self[VALUES].slice(r * aCols, r * aCols + aCols)
+                        .reduce(function (sum, aValue, i) {
+                            return sum += aValue * m[VALUES][i * cColumns + c];
+                        }, 0);
+                })
+
+                return returnAsValues ? values : new Matrix(values, [cRows, cColumns]);
             }
             // Entrywise product (Hadamard)
             if (this.isSameShape(m)) {
                 var values = this[VALUES].map(function (value, i) {
                     return value * m[VALUES][i];
                 });
-                return returnAsValues ? values : new Matrix(values, [rows, columns]);
+                return returnAsValues ? values : new Matrix(values, this[SHAPE]);
             }
-            throw new Error('Multiplication of two matrices demands that either: A and B has same shape (Hadamard product), or A.columns equals B.rows.');
+            throw new Error('Multiplication of two matrices demands that either: A and B has same shape (Hadamard product), or A.columns equals B.rows (matrix product).');
         }
-        if (Array.isArray(m)) { // Handle array as a 'm.length by 1' matrix. Resulting in 'this[SHAPE][0] by 1' matrix
+        if (m instanceof Float64Array || Array.isArray(m)) { // Handle array as a 'm.length by 1' matrix. Resulting in 'this[SHAPE][0] by 1' matrix
+            if (Array.isArray(m)) {
+                m = Float64Array.from(m);
+            }
             if (m.length == this[SHAPE][1]) {
-                rows = this[SHAPE][0];
-
-                var iterations = this[SHAPE][1],
-                    cr = 0;
-
-                values = Array.from({ length: rows }, function (_, i) {
-                    var sum = 0;
-                    for (var j = 0; j < iterations; j++) {
-                        sum += self[VALUES][cr * iterations + j] * m[j];
-                    }
-                    cr++;
-                    return sum;
+                values = Float64Array.from({ length: this[SHAPE][0] }, function (_, r) {
+                    return m.reduce(function (sum, bValue, c) {
+                        return sum += bValue * self[VALUES][r * self[SHAPE][1] + c];
+                    }, 0);
                 });
-                return returnAsValues ? values : new Matrix(values, [rows, 1]);
+
+                return returnAsValues ? values : new Matrix(values, [this[SHAPE][0], 1]);
             }
             else if (m.length == this[SHAPE][0] && this[SHAPE][1] == 1) {// Hadamar product
                 values = m.map(function (v, i) { return v * self[VALUES][i]; });
@@ -174,12 +141,16 @@ Matrix.prototype = {
     },
 
     print: function () {
-        console.table(this.rows);
+        var self = this;
+        console.table(matrixReduce(this[VALUES], this[SHAPE], function (rows, v, r, c) {
+            rows[r][c] = v;
+            return rows;
+        }, Array.from({ length: this[SHAPE][0] }, function () { return Array.from({ length: self[SHAPE][1] }); })));
     },
 
     resize: function (shape, defaultValue) {
-        var rows = this.rows, delta;
-        defaultValue = defaultValue || 0;
+        var self = this, values;
+
         if (shape[0] < 1 || shape[1] < 1) { // Shape argument is deltas
             if (this[SHAPE][0] + shape[0] < 1 || this[SHAPE][1] + shape[1] < 1) {
                 throw new Error('Relative resizing must result in shape minimum [1,1]');
@@ -187,32 +158,14 @@ Matrix.prototype = {
             shape = [this[SHAPE][0] + shape[0], this[SHAPE][1] + shape[1]];
         }
 
-        if (shape[1] < this[SHAPE][1]) {
-            rows = rows.map(function (row) { return row.slice(0, shape[1]); });
-        }
-        else if (shape[1] > this[SHAPE][1]) {
-            delta = shape[1] - this[SHAPE][1];
-            rows = rows.map(function (row) { return row.concat(array(delta, defaultValue)) });
-        }
-        if (shape[0] < this[SHAPE][0]) {
-            rows = rows.slice(0, shape[0]);
-        }
-        else if (shape[0] > this[SHAPE][0]) {
-            rows = rows.concat(array(shape[0] - this[SHAPE][0], array(shape[1], defaultValue)));
-        }
+        values = matrixReduce(this[VALUES], this[SHAPE], function (values, value, r, c, i) {
+            if (r < shape[0] && c < shape[1]) {
+                values.set([value], r * shape[1] + c);
+            }
+            return values;
+        }, Float64Array.from({ length: shape[0] * shape[1] }, function () { return defaultValue || 0 }));
 
-        return new Matrix([].concat.apply([], rows), shape);
-    },
-
-    get rows() {
-        Object.defineProperty(this, 'rows', {
-            value: mapRows(this[VALUES], this[SHAPE][0], this[SHAPE][1]),
-            writable: false,
-            configurable: false,
-            enumerable: true
-
-        });
-        return this.rows;
+        return new Matrix(values, shape);
     },
 
     subtract: function (m) {
@@ -227,6 +180,13 @@ Matrix.prototype = {
     },
 
     transpose: function () {
-        return new Matrix(this.columns.reduce(function (values, col) { [].push.apply(values, col); return values; }, []), [this[SHAPE][1], this[SHAPE][0]]);
+        var self = this,
+            shape = [this[SHAPE][1], this[SHAPE][0]];
+
+        var values = matrixMap(shape[0] * shape[1], shape, function (value, r, c) {
+            return self[VALUES][c * shape[0] + r];
+        })
+
+        return new Matrix(values, shape);
     }
 };

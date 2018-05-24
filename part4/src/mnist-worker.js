@@ -2,7 +2,7 @@ importScripts("../../test-data/mnist/mnist.js");
 importScripts("../../libs/matrix.js");
 importScripts("../../part5/src/multi-layer-nn.js");
 
-var nn = new MultiLayerNetwork(784, [40], 10, 0.4);
+var nn = new MultiLayerNetwork(784, [64], 10, 0.2);
 
 self.addEventListener('message', function (e) {
     if (e.data == 'START') {
@@ -26,13 +26,6 @@ function startTesting(images, labels, trainingTime) {
             prediction = nn.predict(testData.inputs.map(scale.bind(null, 255))),
             guess = classify(prediction);
 
-        if (testData.target != guess) {
-            errors.push({
-                guess: guess,
-                target: testData.target,
-                inputs: testData.inputs,
-            });
-        }
         self.postMessage({
             step: 'Testing',
             bytes: testData.inputs,
@@ -43,6 +36,13 @@ function startTesting(images, labels, trainingTime) {
             target: testData.target,
             prediction: prediction
         });
+        if (testData.target != guess) {
+            errors.push({
+                guess: guess,
+                target: testData.target,
+                inputs: testData.inputs,
+            });
+        }
     }
     self.postMessage({
         step: 'Done',
@@ -80,7 +80,7 @@ function getRandomSet(typedImages, typedLabels) {
 
     return function () {
         var i = Math.floor(Math.random() * images.length),
-            inputs = Array.from(images.splice(i, 1)[0]),
+            inputs = Float64Array.from(images.splice(i, 1)[0]),
             target = labels.splice(i, 1)[0];
 
 
@@ -91,15 +91,8 @@ function getRandomSet(typedImages, typedLabels) {
     };
 }
 function classify(outputs) {
-    return outputs.reduce(function (guess, value, i) {
-        if (value >= 0.5) {
-            if (guess > -1) {
-                return -2;
-            }
-            return i;
-        }
-        return guess;
-    }, -1);
+    var max = Math.max.apply(Math, outputs);
+    return outputs.indexOf(max);
 }
 
 function declasify(num) {
@@ -108,4 +101,15 @@ function declasify(num) {
 
 function scale(scale, input) {
     return input / scale;
+}
+
+function shuffle(a) {
+    var j, x, i;
+    for (i = a.length - 1; i > 0; i--) {
+        j = Math.floor(Math.random() * (i + 1));
+        x = a[i];
+        a[i] = a[j];
+        a[j] = x;
+    }
+    return a;
 }

@@ -1,4 +1,4 @@
-var nn = new MultiLayerNetwork(2, 2, 1, 0.01);
+var nn = new MultiLayerNetwork(2, 2, 2, 0.4);
 
 var w = 200, h = 200, res = 4;
 var out = document.getElementById('out');
@@ -18,14 +18,14 @@ var cols = w / res,
     last = Array.from({ length: cols }, function () { return Array.from({ length: rows }, function () { return 0; }) });
 animate();
 var time;
-//nn.train([0.05,0.10],[0.01,0.99]);
+
 function animate(stamp) {
     var rate = Math.round((stamp - time));
     time = stamp;
     requestAnimationFrame(animate);
     for (var i = 0; i < 1000; i++) {
         var data = td[Math.round(Math.random() * 3)];
-        nn.train(data.inputs, data.target.slice(0, 1));
+        nn.train(data.inputs, data.target);
     }
     update(rate);
 }

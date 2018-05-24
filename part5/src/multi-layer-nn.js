@@ -1,27 +1,27 @@
-/*
-i1 --- o1
-  \  /
-   \/
-   /\
-  /  \
-b ---- o2
-*/
 function Layer(inputs, outputs) {
     var weights = new Matrix(randomWeights(outputs * (inputs + 1)), [outputs, (inputs + 1)]);
 
     Object.defineProperty(this, 'weights', {
-        get: function () { return weights; },
-        set: function (w) { weights = w; },
+        value: weights,
+        writable: false
     });
 
     this.feedforward = function (neurons) {
-        var neuronsWBias = neurons.concat(1);
+        var neuronsWBias = addBias(neurons);
 
         return weights.multiply(neuronsWBias, true).map(sigmoid);
     };
-    this.toString = function () {
-        return inputs + '-->' + outputs;
+
+    this.adjustWeights = function (delta) {
+        weights = weights.add(delta);
     };
+}
+
+function addBias(typedArray) {
+    var typedArrayWithBias = new Float64Array(typedArray.length + 1);
+    typedArrayWithBias.set(typedArray, 0);
+    typedArrayWithBias.set([1], typedArray.length);
+    return typedArrayWithBias;
 }
 
 function MultiLayerNetwork(noInput, hidden, noOutput, learningRate) {
@@ -75,22 +75,22 @@ function MultiLayerNetwork(noInput, hidden, noOutput, learningRate) {
                 // Backprobagation
                 gradients[i] = layers[i + 1].weights
                     .resize([0, -1])// We don't need column with bias weights
-                    .transpose() // Weights pointing to H(i) is in column i of weights_oh
-                    .multiply(gradients[i + 1]) // Sumarize all node gradients, witch directly recieves input from hidden layer (Calculate derivative of E for hidden neurons)
+                    .transpose() // Weights pointing to H(i) is in column i of weights fro next layer
+                    .multiply(gradients[i + 1]) // Sumarize all node gradients, witch directly recieves input from this layer (Calculate derivative of layer neurons)
                     .multiply(dH_dHnet);
 
             }
             return gradients;
         }, [])
             .forEach(function (gradient, i) {
-                var delta_weights = gradient.multiply(new Matrix(neurons[i].concat(1), [neurons[i].length + 1, 1]).transpose()).multiply(-1 * learning_rate);
-                layers[i].weights = layers[i].weights.add(delta_weights);
+                var delta_weights = gradient.multiply(new Matrix(addBias(neurons[i]), [neurons[i].length + 1, 1]).transpose()).multiply(-1 * learning_rate);
+                layers[i].adjustWeights(delta_weights);
             });
     };
 }
 
 function randomWeights(n) {
-    return Array.from({ length: n }, randomWeight);
+    return Float64Array.from({ length: n }, randomWeight);
 }
 
 function randomWeight() {
